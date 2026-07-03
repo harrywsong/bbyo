@@ -12,7 +12,7 @@ CATEGORY_ID = int(os.getenv("CATEGORY_ID"))            # Category where temp VCs
 intents = discord.Intents.default()
 intents.voice_states = True
 intents.members = True
-intents.message_content = True  # needed for prefix commands (!join, !leave)
+intents.message_content = False  # not needed for slash commands
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -24,6 +24,8 @@ temp_channels: dict[int, int] = {}
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     print(f"Watching lobby channel ID: {LOBBY_CHANNEL_ID}")
+    await bot.tree.sync()
+    print("Slash commands synced.")
 
 
 @bot.event
@@ -80,30 +82,28 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
             await channel.delete(reason="Temp VC is empty")
 
 
-@bot.command(name="join")
-@commands.has_permissions(administrator=True)
-async def join(ctx, channel: discord.VoiceChannel = None):
-    """Join a voice channel and stay there. Usage: !join #channel-name"""
-    target = channel or (ctx.author.voice.channel if ctx.author.voice else None)
+@bot.tree.command(name="join", description="Make the bot join a voice channel and stay there.")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def join(interaction: discord.Interaction, channel: discord.VoiceChannel = None):
+    target = channel or (interaction.user.voice.channel if interaction.user.voice else None)
     if target is None:
-        await ctx.send("Specify a voice channel or join one first.")
+        await interaction.response.send_message("Specify a voice channel or join one first.", ephemeral=True)
         return
-    if ctx.voice_client:
-        await ctx.voice_client.move_to(target)
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.move_to(target)
     else:
-        await target.connect(self_deaf=True)  # self_deaf so it doesn't spam audio
-    await ctx.send(f"Joined **{target.name}**.")
+        await target.connect(self_deaf=True)
+    await interaction.response.send_message(f"Joined **{target.name}**.", ephemeral=True)
 
 
-@bot.command(name="leave")
-@commands.has_permissions(administrator=True)
-async def leave(ctx):
-    """Leave the current voice channel. Usage: !leave"""
-    if ctx.voice_client:
-        await ctx.voice_client.disconnect()
-        await ctx.send("Left the voice channel.")
+@bot.tree.command(name="leave", description="Make the bot leave the current voice channel.")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def leave(interaction: discord.Interaction):
+    if interaction.guild.voice_client:
+        await interaction.guild.voice_client.disconnect()
+        await interaction.response.send_message("Left the voice channel.", ephemeral=True)
     else:
-        await ctx.send("I'm not in a voice channel.")
+        await interaction.response.send_message("I'm not in a voice channel.", ephemeral=True)
 
 
 bot.run(TOKEN)
