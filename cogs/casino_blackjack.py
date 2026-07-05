@@ -86,8 +86,10 @@ class BlackjackView(discord.ui.View):
             dealer_total = self._hand_total(self.dealer_hand)
 
         result_lines = []
+        player_hands_text = []
         for index, (hand, hand_bet) in enumerate(zip(self.player_hands, self.hand_bets), start=1):
             player_total = self._hand_total(hand)
+            player_hands_text.append(f"손 {index}: {self._format_hand(hand)}  (총합 {player_total})")
             if player_total > 21:
                 result_lines.append(f"손 {index}: Bust")
             elif dealer_total > 21 or player_total > dealer_total:
@@ -101,7 +103,8 @@ class BlackjackView(discord.ui.View):
                 result_lines.append(f"손 {index}: 무승부")
 
         embed = discord.Embed(title="🃏 블랙잭 결과", color=discord.Color.gold())
-        embed.add_field(name="🂠 딜러", value=f"{self._format_hand(self.dealer_hand)}  (총합 {dealer_total})", inline=False)
+        embed.add_field(name="🧑 플레이어 핸드", value="\n".join(player_hands_text), inline=False)
+        embed.add_field(name="🂠 딜러 핸드", value=f"{self._format_hand(self.dealer_hand)}  (총합 {dealer_total})", inline=False)
         embed.add_field(name="📊 결과", value="\n".join(result_lines), inline=False)
         embed.add_field(name="🏦 잔액", value=f"{await self.coins_cog.get_user_coins(interaction.user.id, interaction.guild.id):,} 코인", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
