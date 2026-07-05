@@ -41,8 +41,13 @@ class BlackjackView(discord.ui.View):
     def _current_bet(self) -> int:
         return self.hand_bets[self.current_hand_index]
 
+    def _format_card(self, card: tuple[int, str]) -> str:
+        rank, suit = card
+        rank_text = "A" if rank == 11 else str(rank)
+        return f"{rank_text}{suit}"
+
     def _format_hand(self, hand: list[tuple[int, str]]) -> str:
-        return " ".join(f"{rank}{suit}" for rank, suit in hand)
+        return " ".join(self._format_card(card) for card in hand)
 
     async def _refresh_button_states(self) -> None:
         if self.finished:
@@ -56,8 +61,8 @@ class BlackjackView(discord.ui.View):
 
         self.hit_button.disabled = current_total >= 21
         self.stand_button.disabled = False
-        self.double_button.disabled = not (len(current_hand) == 2 and current_total in {9, 10, 11} and balance >= self._current_bet() + self.bet)
-        self.split_button.disabled = not (len(current_hand) == 2 and current_hand[0][0] == current_hand[1][0] and balance >= self._current_bet() + self.bet)
+        self.double_button.disabled = not (len(current_hand) == 2 and current_total in {9, 10, 11} and balance >= self.bet)
+        self.split_button.disabled = not (len(current_hand) == 2 and current_hand[0][0] == current_hand[1][0] and balance >= self.bet)
 
     async def _show_state(self, interaction: discord.Interaction, title: str, description: str, color: discord.Color) -> None:
         await self._refresh_button_states()
@@ -87,22 +92,37 @@ class BlackjackView(discord.ui.View):
 
         result_lines = []
         player_hands_text = []
+        outcome = "무승부"
+        win_count = 0
+        loss_count = 0
+        push_count = 0
         for index, (hand, hand_bet) in enumerate(zip(self.player_hands, self.hand_bets), start=1):
             player_total = self._hand_total(hand)
             player_hands_text.append(f"손 {index}: {self._format_hand(hand)}  (총합 {player_total})")
             if player_total > 21:
                 result_lines.append(f"손 {index}: Bust")
+                loss_count += 1
             elif dealer_total > 21 or player_total > dealer_total:
                 payout = hand_bet * 2
                 await self.coins_cog.add_coins(interaction.user.id, interaction.guild.id, payout, "blackjack_win", "Blackjack win")
                 result_lines.append(f"손 {index}: 승리 (+{payout:,})")
+                win_count += 1
             elif player_total < dealer_total:
                 result_lines.append(f"손 {index}: 패배")
+                loss_count += 1
             else:
                 await self.coins_cog.add_coins(interaction.user.id, interaction.guild.id, hand_bet, "blackjack_push", "Blackjack push")
                 result_lines.append(f"손 {index}: 무승부")
+                push_count += 1
 
-        embed = discord.Embed(title="🃏 블랙잭 결과", color=discord.Color.gold())
+        if win_count > loss_count and win_count > push_count:
+            outcome = "승리"
+        elif loss_count > win_count and loss_count > push_count:
+            outcome = "패배"
+        elif push_count > 0 and push_count >= win_count and push_count >= loss_count:
+            outcome = "무승부"
+
+        embed = discord.Embed(title=f"🃏 블랙잭 결과 - {outcome}", color=discord.Color.gold())
         embed.add_field(name="🧑 플레이어 핸드", value="\n".join(player_hands_text), inline=False)
         embed.add_field(name="🂠 딜러 핸드", value=f"{self._format_hand(self.dealer_hand)}  (총합 {dealer_total})", inline=False)
         embed.add_field(name="📊 결과", value="\n".join(result_lines), inline=False)
@@ -130,7 +150,7 @@ class BlackjackView(discord.ui.View):
         if self.finished:
             return
         balance = await self.coins_cog.get_user_coins(interaction.user.id, interaction.guild.id)
-        if balance < self._current_bet() + self.bet:
+        if balance < self.bet:
             await self._show_state(interaction, "🃏 블랙잭", "더블다운에 필요한 코인이 부족합니다.", discord.Color.red())
             return
 
@@ -144,7 +164,7 @@ class BlackjackView(discord.ui.View):
         if self.finished:
             return
         balance = await self.coins_cog.get_user_coins(interaction.user.id, interaction.guild.id)
-        if balance < self._current_bet() + self.bet:
+        if balance < self.bet:
             await self._show_state(interaction, "🃏 블랙잭", "스플릿에 필요한 코인이 부족합니다.", discord.Color.red())
             return
 
