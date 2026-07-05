@@ -1,8 +1,64 @@
+import asyncio
 import random
 
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
+
+
+class SlotsSpinView(discord.ui.View):
+    def __init__(self, bot: commands.Bot, interaction: discord.Interaction, bet: int) -> None:
+        super().__init__(timeout=60)
+        self.bot = bot
+        self.interaction = interaction
+        self.bet = bet
+
+    @discord.ui.button(label="🎰 돌리기", style=discord.ButtonStyle.green)
+    async def spin(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.defer()
+        coins_cog = self.bot.get_cog("CoinsCog")
+        if not coins_cog:
+            await interaction.edit_original_response(content="코인 시스템을 찾을 수 없습니다.")
+            return
+
+        await coins_cog.remove_coins(interaction.user.id, interaction.guild.id, self.bet, "slot_bet", "Slots bet")
+        symbols = ["🍒", "🍋", "⭐", "🔔", "💎", "7️⃣"]
+
+        for _ in range(4):
+            reels = [random.choice(symbols) for _ in range(3)]
+            embed = discord.Embed(title="🎰 슬롯머신", description="🔄 회전 중...", color=discord.Color.gold())
+            embed.add_field(name="🎲 결과", value=" | ".join(reels), inline=False)
+            embed.add_field(name="💳 베팅", value=f"{self.bet:,} 코인", inline=True)
+            await interaction.edit_original_response(embed=embed, view=None)
+            await asyncio.sleep(0.5)
+
+        reels = [random.choice(symbols) for _ in range(3)]
+        result = " | ".join(reels)
+        if reels[0] == reels[1] == reels[2]:
+            if reels[0] == "7️⃣":
+                payout = self.bet * 20
+                outcome = f"🎉 잭팟! {payout:,} 코인 지급"
+                color = discord.Color.gold()
+            else:
+                payout = self.bet * 10
+                outcome = f"🎉 10배 당첨! {payout:,} 코인 지급"
+                color = discord.Color.green()
+            await coins_cog.add_coins(interaction.user.id, interaction.guild.id, payout, "slot_win", "Slots win")
+        elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
+            payout = self.bet * 2
+            await coins_cog.add_coins(interaction.user.id, interaction.guild.id, payout, "slot_win", "Slots win")
+            outcome = f"✨ 2배 보너스! {payout:,} 코인 지급"
+            color = discord.Color.blue()
+        else:
+            outcome = "😞 패배! 다음 기회에 도전해 보세요."
+            color = discord.Color.red()
+
+        final_embed = discord.Embed(title="🎰 슬롯머신", color=color)
+        final_embed.add_field(name="🎲 결과", value=result, inline=False)
+        final_embed.add_field(name="💳 베팅", value=f"{self.bet:,} 코인", inline=True)
+        final_embed.add_field(name="📊 결과", value=outcome, inline=True)
+        final_embed.set_footer(text=f"잔액: {await coins_cog.get_user_coins(interaction.user.id, interaction.guild.id):,} 코인")
+        await interaction.edit_original_response(embed=final_embed, view=None)
 
 
 class SlotsCog(commands.Cog):
@@ -27,46 +83,9 @@ class SlotsCog(commands.Cog):
             await interaction.response.send_message(error, ephemeral=True)
             return
 
-        coins_cog = self.bot.get_cog("CoinsCog")
-        if not coins_cog:
-            await interaction.response.send_message("코인 시스템을 찾을 수 없습니다.", ephemeral=True)
-            return
-
-        await interaction.response.defer(thinking=True)
-        await coins_cog.remove_coins(interaction.user.id, interaction.guild.id, bet, "slot_bet", "Slots bet")
-
-        symbols = ["🍒", "🍋", "⭐", "🔔", "💎", "7️⃣"]
-        reels = [random.choice(symbols) for _ in range(3)]
-        result = " | ".join(reels)
-
-        if reels[0] == reels[1] == reels[2]:
-            if reels[0] == "7️⃣":
-                multiplier = 20
-            else:
-                multiplier = 10
-            payout = bet * multiplier
-            await coins_cog.add_coins(interaction.user.id, interaction.guild.id, payout, "slot_win", "Slots win")
-            title = "🎉 슬롯 승리!"
-            color = discord.Color.gold()
-            outcome = f"{multiplier}배 당첨! {payout:,} 코인 지급"
-        elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
-            multiplier = 2
-            payout = bet * multiplier
-            await coins_cog.add_coins(interaction.user.id, interaction.guild.id, payout, "slot_win", "Slots win")
-            title = "✨ 슬롯 보너스"
-            color = discord.Color.blue()
-            outcome = f"2배 당첨! {payout:,} 코인 지급"
-        else:
-            title = "😞 슬롯 패배"
-            color = discord.Color.red()
-            outcome = "다음 기회에 도전해보세요."
-
-        embed = discord.Embed(title=title, color=color)
-        embed.add_field(name="🎰 결과", value=result, inline=False)
-        embed.add_field(name="💳 베팅", value=f"{bet:,} 코인", inline=True)
-        embed.add_field(name="📊 결과", value=outcome, inline=True)
-        embed.set_footer(text=f"잔액: {await coins_cog.get_user_coins(interaction.user.id, interaction.guild.id):,} 코인")
-        await interaction.followup.send(embed=embed)
+        embed = discord.Embed(title="🎰 슬롯머신", description="버튼을 눌러 슬롯을 돌려 보세요.", color=discord.Color.gold())
+        embed.add_field(name="💳 베팅", value=f"{bet:,} 코인", inline=False)
+        await interaction.response.send_message(embed=embed, view=SlotsSpinView(self.bot, interaction, bet))
 
 
 async def setup(bot: commands.Bot) -> None:

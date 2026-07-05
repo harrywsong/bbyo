@@ -32,6 +32,7 @@ class BBYOBot(commands.Bot):
             "cogs.casino_slots",
             "cogs.casino_roulette",
             "cogs.casino_blackjack",
+            "cogs.admin_test_tools",
         ]:
             await self.load_extension(extension)
 
