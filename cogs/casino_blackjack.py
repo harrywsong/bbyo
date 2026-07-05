@@ -61,8 +61,8 @@ class BlackjackView(discord.ui.View):
 
         self.hit_button.disabled = current_total >= 21
         self.stand_button.disabled = False
-        self.double_button.disabled = not (len(current_hand) == 2 and current_total in {9, 10, 11} and balance >= self.bet)
-        self.split_button.disabled = not (len(current_hand) == 2 and current_hand[0][0] == current_hand[1][0] and balance >= self.bet)
+        self.double_button.disabled = not (len(current_hand) == 2 and balance >= self._current_bet())
+        self.split_button.disabled = not (len(current_hand) == 2 and current_hand[0][0] == current_hand[1][0] and balance >= self._current_bet())
 
     async def _show_state(self, interaction: discord.Interaction, title: str, description: str, color: discord.Color) -> None:
         await self._refresh_button_states()
