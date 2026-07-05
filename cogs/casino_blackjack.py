@@ -5,6 +5,9 @@ from discord import app_commands
 from discord.ext import commands
 
 
+SUIT_EMOJIS = ["♠️", "♥️", "♦️", "♣️"]
+
+
 class BlackjackView(discord.ui.View):
     def __init__(self, bot: commands.Bot, interaction: discord.Interaction, bet: int, player_hand: list[tuple[int, str]], dealer_hand: list[tuple[int, str]], coins_cog) -> None:
         super().__init__(timeout=120)
@@ -20,7 +23,7 @@ class BlackjackView(discord.ui.View):
 
     def _draw_card(self) -> tuple[int, str]:
         rank = random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11])
-        suit = random.choice(["♠", "♥", "♦", "♣"])
+        suit = random.choice(SUIT_EMOJIS)
         return rank, suit
 
     def _hand_total(self, hand: list[tuple[int, str]]) -> int:
@@ -53,7 +56,7 @@ class BlackjackView(discord.ui.View):
 
         self.hit_button.disabled = current_total >= 21
         self.stand_button.disabled = False
-        self.double_button.disabled = not (len(current_hand) == 2 and current_total < 21 and balance >= self._current_bet() + self.bet)
+        self.double_button.disabled = not (len(current_hand) == 2 and current_total in {9, 10, 11} and balance >= self._current_bet() + self.bet)
         self.split_button.disabled = not (len(current_hand) == 2 and current_hand[0][0] == current_hand[1][0] and balance >= self._current_bet() + self.bet)
 
     async def _show_state(self, interaction: discord.Interaction, title: str, description: str, color: discord.Color) -> None:
@@ -144,7 +147,7 @@ class BlackjackView(discord.ui.View):
 
         current_hand = self._current_hand()
         if len(current_hand) != 2 or current_hand[0][0] != current_hand[1][0]:
-            await self._show_state(interaction, "🃏 블랙잭", "스플릿은 같은 숫자 두 장일 때만 가능합니다.", discord.Color.red())
+            await self._show_state(interaction, "🃏 블랙잭", "스플릿은 시작 손의 같은 숫자 두 장일 때만 가능합니다.", discord.Color.red())
             return
 
         await self.coins_cog.remove_coins(interaction.user.id, interaction.guild.id, self.bet, "blackjack_split", "Blackjack split")
@@ -189,11 +192,11 @@ class BlackjackCog(commands.Cog):
         await coins_cog.remove_coins(interaction.user.id, interaction.guild.id, bet, "blackjack_bet", "Blackjack bet")
 
         player_hand = [
-            (random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]), random.choice(["♠", "♥", "♦", "♣"])),
-            (random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]), random.choice(["♠", "♥", "♦", "♣"])),
+            (random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]), random.choice(SUIT_EMOJIS)),
+            (random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]), random.choice(SUIT_EMOJIS)),
         ]
         dealer_hand = [
-            (random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]), random.choice(["♠", "♥", "♦", "♣"])),
+            (random.choice([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]), random.choice(SUIT_EMOJIS)),
         ]
 
         view = BlackjackView(self.bot, interaction, bet, player_hand, dealer_hand, coins_cog)
